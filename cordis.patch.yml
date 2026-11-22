@@ -1,0 +1,23 @@
+# DSH bundle patch: insert the Halo MCP client into the current profile.
+#
+# After installing, open the DSH plugin page (设置 → 插件 → Halo 博客 → 配置)
+# and fill in your own site URL and MCP access token:
+#
+#   url:      https://<your-halo-site>/mcp
+#   headers:  { Authorization: "Bearer <your-mcp-token>" }
+#
+# Create the token in Halo console: 插件 → MCP 服务 → 访问密钥.
+# Writing posts requires the write tools to be enabled on that key.
+- insert:
+    - id: mcp-halo
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: halo
+        transport: streamable-http
+        # Replace with your own Halo site; the MCP endpoint is /mcp.
+        url: https://blog.lonelyx.cn/mcp
+        # Filled in from the plugin settings page, e.g.
+        #   Authorization: 'Bearer hmcp_xxx'
+        headers: {}
+        failOnStartupError: false
+        toolCallTimeoutMs: 60000

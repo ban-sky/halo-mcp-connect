@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Halo Blog",
+    "description": "Connects to the Halo blog MCP server so the agent can search, read and write posts, pages, categories, tags, comments and attachments. Configure the site URL and MCP token on the plugin settings page."
+  }
+}
