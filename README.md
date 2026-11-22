@@ -6,8 +6,15 @@
 DSH (MCP 客户端) ──HTTP──▶ Halo /mcp (MCP 服务插件) ──▶ Halo REST API
 ```
 
-本仓库是一个**纯配置**的 DSH bundle：不含任何可执行代码，只向 DSH profile 插入一个
-`@deepseek-ai/dsh-mcp-client` 实例。站点地址、MCP Token、超时等参数都在 DSH 的插件配置页里填写。
+本仓库是一个 DSH bundle，包含三部分：
+
+| 部分 | 文件 | 作用 |
+| --- | --- | --- |
+| 配置补丁 | `cordis.patch.yml` | 向 profile 插入 `mcp-halo`（`@deepseek-ai/dsh-mcp-client`）和本 bundle 的 Host 半身 |
+| Host 半身 | `index.js` | 提供 `GET/PUT /api/halo-mcp-connect/config`，校验参数并通过 `configEditor.edit()` 重写 `mcp-halo` 配置 |
+| Client 半身 | `client.js` | 在「设置 → 插件 → halo-mcp-connect」页面渲染“Halo 博客连接”卡片（地址、密钥、重连） |
+
+保存配置时 DSH 的 Loader 会重新应用 `mcp-halo` 条目，MCP 客户端随之重连并重新拉取工具列表——**不需要重启 `dsh web`**。
 
 ## 前置条件
 
@@ -28,23 +35,21 @@ DSH (MCP 客户端) ──HTTP──▶ Halo /mcp (MCP 服务插件) ──▶ H
 dsh plugin --profile web add /path/to/halo-mcp-connect
 ```
 
-安装后需重启 `dsh web` 才会加载新的 MCP 连接。
+安装后刷新浏览器页面，让新的 Client 半身加载。
 
 ## 配置
 
-### 插件配置页（推荐）
+打开 **设置 → 插件 → halo-mcp-connect**，在“Halo 博客连接”卡片里填写：
 
-**设置 → 插件 → Halo 博客 → 配置**，填写：
-
-| 字段 | 值 |
+| 字段 | 说明 |
 | --- | --- |
-| `url` | `https://<你的站点>/mcp` |
-| `headers` | `{"Authorization": "Bearer hmcp_xxx"}` |
-| `toolCallTimeoutMs` | `60000`（按需调整） |
+| 站点地址 | `https://<你的站点>/mcp`，也可只填站点地址，保存时自动补 `/mcp` |
+| MCP 访问密钥 | 只写不读：保存后回显“已保存密钥”，留空表示保持不变 |
+| 清除密钥 | 勾选后保存会删除已保存的 `Authorization` |
+| 保存并重连 | 写入配置并等待工具重新注册，显示当前工具数量 |
+| 重新读取 | 重新读取当前配置与工具数量 |
 
-### 或覆盖 profile 配置
-
-编辑 `$DSH_HOME/profiles/web/cordis.patch.yml`，加入按 id 覆盖的条目：
+命令行等价方式（改 `$DSH_HOME/profiles/web/cordis.patch.yml` 后保存同样会触发热加载）：
 
 ```yaml
 - id: mcp-halo
@@ -57,8 +62,6 @@ dsh plugin --profile web add /path/to/halo-mcp-connect
       Authorization: 'Bearer hmcp_xxx'
     toolCallTimeoutMs: 60000
 ```
-
-改完重启 `dsh web`。
 
 ## 可用工具
 
@@ -80,20 +83,26 @@ dsh plugin --profile web add /path/to/halo-mcp-connect
 
 ## 排障
 
-- **只有读工具**：密钥没放开写工具，去 Halo 控制台编辑该密钥并勾选「允许全部工具」。
-- **改完密钥工具没变**：MCP 服务端宣告 `tools.listChanged=false`，DSH 只在连接时同步工具列表，
-  重启 `dsh web` 即可。
+- **插件页没有配置卡片**：确认 bundle 已启用且 `client.js` 被浏览器加载（刷新页面）；
+  本卡片挂在 `plugins.bundle.config` 槽位，键为包名 `halo-mcp-connect`。
+- **只有读工具**：密钥没放开写工具，去 Halo 控制台编辑该密钥并勾选「允许全部工具」，
+  然后在卡片里点一次“保存并重连”。
+- **保存后工具数没变**：MCP 服务端宣告 `tools.listChanged=false`，热重连会重新 `tools/list`；
+  若仍为 0，检查地址、Token 与站点可达性，或在卡片里点“重新读取”。
 - **401 / 连接失败**：检查 Token 是否带 `Bearer ` 前缀、端点是否为 `/mcp`、站点是否可从本机访问。
 
 ## 安全
 
-- 本仓库的 `cordis.patch.yml` 不含任何 Token，请勿把自己的密钥提交回仓库。
+- 本仓库的 `cordis.patch.yml` 不含任何 Token；真实密钥保存在 profile 的
+  `cordis.patch.yml` 或本 bundle 的补丁里，请勿提交回仓库。
+- 保存的密钥只写不读，Host 接口不会返回明文。
 - 只读场景不要勾选「允许全部工具」，按需授权更安全。
 - 写操作会直接影响线上内容，智能体调用前请确认。
 
 ## 版本
 
-- `1.1.0` — 配置化改造：站点地址与 MCP Token 移至插件配置页；补充文档与发布说明。
+- `1.2.0` — 新增 Host/Client 半身：插件页“Halo 博客连接”配置卡片，保存即热重连、刷新 MCP 工具。
+- `1.1.0` — 配置化改造：站点地址与 MCP Token 移至补丁层；补充文档与发布说明。
 - `1.0.0` — 首个可用版本。
 
 ## License
