@@ -1,13 +1,9 @@
-# DSH bundle patch: mount the settings card and the Halo MCP client.
+# halo-mcp-connect bundle patch
 #
-# After installing (DSH → 设置 → 插件 → halo-mcp-connect), open this bundle's
-# page and use the "Halo 博客连接" card to fill in your own site URL and MCP
-# access token. Saving there writes the `mcp-halo` entry's config through
-# Loader, so the MCP client reconnects and re-lists its tools immediately —
-# no `dsh web` restart needed.
-#
-# Create the token in Halo console: 插件 → MCP 服务 → 访问密钥, and enable the
-# tools you need (写作需要勾选“允许全部工具”或写入类工具).
+# Mounts this bundle's Host half (the settings route) and the MCP client row
+# that connects to the Halo site. The Client half is discovered from the
+# package's `dsh.client` manifest and rendered by the Web UI on this bundle's
+# page, so the site address and MCP key are editable at runtime.
 - insert:
     - id: halo-mcp-connect
       name: 'halo-mcp-connect'
@@ -16,10 +12,10 @@
       config:
         serverName: halo
         transport: streamable-http
-        # Replace with your own Halo site; the MCP endpoint is /mcp.
         url: https://blog.lonelyx.cn/mcp
-        # Filled in from the settings card, e.g.
-        #   Authorization: 'Bearer hmcp_xxx'
         headers: {}
-        failOnStartupError: false
         toolCallTimeoutMs: 60000
+        # Never let a bad key or unreachable site kill the Loader entry: the
+        # client stays active with zero tools, so the settings card can repair
+        # the config without a restart.
+        failOnStartupError: false

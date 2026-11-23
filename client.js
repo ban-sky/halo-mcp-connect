@@ -28,7 +28,7 @@ window.__ModuleLoader__.load({
       'desc': '填写 Halo 站点地址与 MCP 访问密钥。保存后会立即重连并刷新 MCP 工具，无需重启 dsh web。',
       'url.label': '站点地址',
       'url.placeholder': 'https://blog.example.com',
-      'url.hint': 'Halo 地址，连接端点为 <地址>/mcp。',
+      'url.hint': '填站点根地址即可，保存时会自动补成 <地址>/mcp。',
       'token.label': 'MCP 访问密钥',
       'token.placeholder.keep': '已保存，留空则保持不变',
       'token.placeholder.new': '粘贴 Halo 控制台生成的 MCP 密钥',
@@ -54,7 +54,7 @@ window.__ModuleLoader__.load({
       'desc': 'Set the Halo site address and MCP access key. Saving reconnects and refreshes the MCP tools immediately — no dsh web restart needed.',
       'url.label': 'Site address',
       'url.placeholder': 'https://blog.example.com',
-      'url.hint': 'The Halo site; the MCP endpoint is <address>/mcp.',
+      'url.hint': 'Use the site root; the MCP endpoint <address>/mcp is filled in automatically.',
       'token.label': 'MCP access key',
       'token.placeholder.keep': 'A key is stored; leave blank to keep it',
       'token.placeholder.new': 'Paste a key generated in the Halo console',
@@ -98,11 +98,25 @@ window.__ModuleLoader__.load({
 `
 
     /**
-     * Read the connection card state from the Host.
+     * Fetch with a bounded wait, so a hung route cannot leave the card spinning.
+     * @param {string} route - Route path.
+     * @param {RequestInit} [init] - Fetch options.
      * @returns {Promise<Record<string, unknown>>} Host value.
      */
-    const readConfig = async () => {
-      const response = await fetch(ROUTE, { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    const request = async (route, init) => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 20000)
+      let response
+      try {
+        response = await fetch(route, { credentials: 'same-origin', signal: controller.signal, ...init })
+      } catch (cause) {
+        const reason = cause instanceof Error && cause.name === 'AbortError' ? '请求超时（20 秒）' : String(cause)
+        const error = new Error(reason)
+        error.code = 'network'
+        throw error
+      } finally {
+        clearTimeout(timer)
+      }
       const payload = await response.json().catch(() => undefined)
       if (!response.ok || payload?.ok !== true) {
         const message = payload?.error?.message ?? `HTTP ${response.status}`
@@ -114,26 +128,22 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Read the connection card state from the Host.
+     * @returns {Promise<Record<string, unknown>>} Host value.
+     */
+    const readConfig = () => request(ROUTE, { headers: { accept: 'application/json' } })
+
+    /**
      * Persist the edited fields and let the Host reconnect.
      * @param {Record<string, unknown>} body - Fields to write.
      * @returns {Promise<Record<string, unknown>>} Host value.
      */
-    const writeConfig = async (body) => {
-      const response = await fetch(ROUTE, {
+    const writeConfig = (body) =>
+      request(ROUTE, {
         method: 'PUT',
-        credentials: 'same-origin',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify(body),
       })
-      const payload = await response.json().catch(() => undefined)
-      if (!response.ok || payload?.ok !== true) {
-        const message = payload?.error?.message ?? `HTTP ${response.status}`
-        const error = new Error(message)
-        error.code = payload?.error?.code
-        throw error
-      }
-      return payload.value
-    }
 
     /**
      * The bundle's configuration card.
@@ -181,6 +191,7 @@ window.__ModuleLoader__.load({
           setToken('')
           setClearToken(false)
           setValue((previous) => ({ ...(previous ?? {}), ...result }))
+          if (typeof result.url === 'string' && result.url !== '') setUrl(result.url)
           const count = typeof result.tools === 'number' ? result.tools : 0
           setMessage(count > 0 ? `${t('saved')} ${t('tools', { count })}` : t('saved.notools'))
         } catch (cause) {
